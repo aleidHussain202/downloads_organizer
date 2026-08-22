@@ -45,7 +45,7 @@ DEFAULT_RULES: dict[str, str] = {
     ".mp3": "Audio",
     ".wav": "Audio",
     ".flac": "Audio",
-    ".ogg": "AgePlaceholder".replace("AgePlaceholder", "Audio"),
+    ".ogg": "Audio",
     ".m4a": "Audio",
     # Video
     ".mp4": "Video",
