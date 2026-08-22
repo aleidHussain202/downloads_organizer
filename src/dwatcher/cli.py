@@ -27,6 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
     once.add_argument("--quiet", type=int, default=30,
                       help="seconds of no-change before a file counts as done")
     once.add_argument("--dry-run", action="store_true")
+    once.add_argument("--db", default=None)
 
     watch = sub.add_parser("watch", help="watch continuously")
     watch.add_argument("--watch", dest="watch_dir", default=None)
@@ -34,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     watch.add_argument("--interval", type=int, default=10)
     watch.add_argument("--quiet", type=int, default=30)
     watch.add_argument("--dry-run", action="store_true")
+    watch.add_argument("--db", default=None)
 
     rec = sub.add_parser("recover", help="resolve interrupted moves from journal")
     rec.add_argument("--db", default=None)
