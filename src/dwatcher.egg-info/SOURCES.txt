@@ -1,8 +1,0 @@
-pyproject.toml
-src/dwatcher/__init__.py
-src/dwatcher.egg-info/PKG-INFO
-src/dwatcher.egg-info/SOURCES.txt
-src/dwatcher.egg-info/dependency_links.txt
-src/dwatcher.egg-info/top_level.txt
-tests/test_rules.py
-tests/test_smoke.py
