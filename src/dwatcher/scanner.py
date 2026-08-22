@@ -23,6 +23,7 @@ def scan_once(
     rules: dict | None = None,
     quiet_seconds: int = 30,
     dry_run: bool = False,
+    store=None,
 ) -> ScanReport:
     """One pass over watch_dir. Moves stable, classified files into
     dest_root/<Category>/.
@@ -47,8 +48,20 @@ def scan_once(
         if category is None:
             continue
         plan = plan_move(entry, dest_root / category)
+        if store is not None and not dry_run:
+            store.write_intent(str(entry), str(plan.dst))
         result = execute_move(plan, dry_run=dry_run)
         if result.ok:
+            if store is not None and not dry_run:
+                store.clear_intent(str(result.dst))
+            try:
+                size = entry.stat().st_size if not dry_run else plan.src.stat().st_size
+            except OSError:
+                size = 0
+            if store is not None:
+                record_size = size
+                store.record_move(str(plan.src), str(result.dst),
+                                  category, record_size, dry_run)
             report.moved.append(result)
         else:
             report.errors += 1
