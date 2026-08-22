@@ -84,7 +84,7 @@ class TestInPlaceMode:
         os.utime(f, (old, old))
         rc = main(["once", "--watch", str(w)])
         assert rc == 0
-        assert (w / "Installers" / "a.zip").exists()
+        assert (w / "Archives" / "a.zip").exists()
 
     def test_category_folders_not_rescanned_as_files(self, tmp_path):
         w = tmp_path / "w"; w.mkdir()
@@ -94,8 +94,8 @@ class TestInPlaceMode:
         os.utime(f, (old, old))
         rc = main(["once", "--watch", str(w)])
         assert rc == 0
+        assert not f.exists()
         # second run: nothing new to do, existing tree untouched
-        capsys.readouterr()
         rc2 = main(["once", "--watch", str(w)])
         assert rc2 == 0
         assert (w / "Archives" / "a.zip").exists()
