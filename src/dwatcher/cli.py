@@ -1,4 +1,4 @@
-"""Command-line interface: once | watch | recover | stats."""
+"""Command-line interface: once | watch | recover | stats | gui."""
 
 from __future__ import annotations
 
@@ -42,6 +42,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     st = sub.add_parser("stats", help="show move counts per category")
     st.add_argument("--db", default=None)
+
+    gui = sub.add_parser("gui", help="launch native desktop GUI")
+    gui.add_argument("--config", default=None, help="path to dwatcher.toml")
     return p
 
 
@@ -137,6 +140,11 @@ def main(argv=None) -> int:
             return 0
         finally:
             store.close()
+
+    elif args.command == "gui":
+        from .gui import main as gui_main
+        gui_main(args.config)
+        return 0
 
     return 1
 
