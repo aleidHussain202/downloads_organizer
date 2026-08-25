@@ -3,6 +3,26 @@
 Watches a folder (default: your Downloads) and auto-organizes **completed**
 downloads into category folders — safely.
 
+**Current release:** [v1.0.0](CHANGELOG.md) · 74 tests, zero runtime dependencies.
+
+## Quick start (no Python needed)
+
+Copy `dist/dwatcher.exe` anywhere (~11 MB standalone) and run it:
+
+```bash
+dwatcher.exe gui              # native desktop app
+dwatcher.exe once --dry-run   # preview a sort of your Downloads
+dwatcher.exe once             # sort in place (creates category folders)
+dwatcher.exe watch            # continuous watch (Ctrl+C to stop)
+dwatcher.exe recover          # finish/rollback moves after a crash or kill
+dwatcher.exe stats            # move counts per category
+```
+
+Double-clicking `dwatcher-gui.bat` / `dwatcher-sort.bat` /
+`dwatcher-watch.bat` does the same from the project folder.
+
+## What it looks like
+
 ```
 Downloads/
 ├── SteamSetup.exe   → Downloads/Installers/SteamSetup.exe
@@ -23,7 +43,7 @@ Downloads/
   process dies mid-move, `dwatcher recover` finishes or rolls back cleanly.
 - **Audit trail** — full move history + JSONL event log.
 
-## Install
+## Install (from source)
 
 ```bash
 # from the project folder
@@ -33,7 +53,7 @@ uv pip install -e . --python .venv/Scripts/python.exe
 
 No third-party runtime dependencies — Python 3.11 stdlib only.
 
-## Usage
+## Usage (from source)
 
 ```bash
 # one-shot sort of your Downloads (in place)
@@ -55,7 +75,17 @@ No third-party runtime dependencies — Python 3.11 stdlib only.
 .venv\Scripts\python.exe -m dwatcher.cli stats
 ```
 
-Or just double-click `dwatcher-sort.bat` (one-shot) / `dwatcher-watch.bat`.
+Or run the same commands through `dist/dwatcher.exe` (see Quick start).
+
+## GUI
+
+```bash
+dwatcher.exe gui [--config path/to/dwatcher.toml]
+```
+
+The GUI shows live watch status, per-category stats bars, a recent-moves
+table, and pause/resume + dry-run controls. It hides its console window;
+the CLI subcommands keep theirs.
 
 ## Configuration (`dwatcher.toml`)
 
@@ -75,10 +105,13 @@ dry_run = false
 ## Development
 
 ```bash
-.venv\Scripts\python.exe -m pytest -q     # 73 tests
+.venv\Scripts\python.exe -m pytest -q     # 74 tests
+
+# rebuild the exe after changes
+.venv\Scripts\pyinstaller.exe dwatcher.spec
 ```
 
 Architecture: `rules` (classify) · `stability` (is it done?) ·
 `mover` (collision-safe moves) · `scanner` (pipeline) ·
 `store` (SQLite history + intent journal) · `recovery` (crash repair) ·
-`watcher` (loop + backoff + JSONL logs) · `cli`.
+`watcher` (loop + backoff + JSONL logs) · `cli` · `gui`.

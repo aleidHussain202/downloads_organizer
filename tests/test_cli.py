@@ -22,6 +22,13 @@ class TestParser:
         ns = build_parser().parse_args(["once", "--dry-run"])
         assert ns.dry_run is True
 
+    def test_version_flag_prints_version_and_exits(self, capsys):
+        import dwatcher
+        with pytest.raises(SystemExit) as exc:
+            main(["--version"])
+        assert exc.value.code == 0
+        assert dwatcher.__version__ in capsys.readouterr().out
+
 
 class TestMainOnce:
     def test_once_moves_files_and_prints_report(self, tmp_path, capsys):

@@ -5,3 +5,8 @@ __pycache__/
 .pytest_cache/
 dist/
 build/
+
+# runtime artifacts
+*.db
+dwatcher_events.jsonl
+*.log

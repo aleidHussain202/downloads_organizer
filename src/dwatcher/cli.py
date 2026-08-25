@@ -6,6 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from . import __version__
 from .config import load_config
 from .recovery import recover_pending
 from .scanner import scan_once
@@ -19,6 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Watch a folder and auto-organize completed downloads.",
     )
     p.add_argument("--config", default=None, help="path to dwatcher.toml")
+    p.add_argument("--version", action="version", version=f"dwatcher {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
 
     once = sub.add_parser("once", help="run a single scan")
