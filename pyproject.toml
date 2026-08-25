@@ -2,6 +2,7 @@
 name = "dwatcher"
 description = "Download Watcher - watches a folder and auto-organizes completed downloads"
 requires-python = ">=3.11"
+license = {text = "MIT"}
 dynamic = ["version"]
 
 [tool.setuptools.dynamic]
