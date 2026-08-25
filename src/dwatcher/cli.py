@@ -21,7 +21,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--config", default=None, help="path to dwatcher.toml")
     p.add_argument("--version", action="version", version=f"dwatcher {__version__}")
-    sub = p.add_subparsers(dest="command", required=True)
+    # no subcommand (e.g. double-clicking the exe) falls through to the GUI
+    sub = p.add_subparsers(dest="command")
 
     once = sub.add_parser("once", help="run a single scan")
     once.add_argument("--watch", default=None)
@@ -143,7 +144,7 @@ def main(argv=None) -> int:
         finally:
             store.close()
 
-    elif args.command == "gui":
+    if args.command in (None, "gui"):
         from .gui import main as gui_main
         gui_main(args.config)
         return 0

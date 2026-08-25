@@ -29,6 +29,13 @@ class TestParser:
         assert exc.value.code == 0
         assert dwatcher.__version__ in capsys.readouterr().out
 
+    def test_no_command_defaults_to_gui(self, monkeypatch):
+        called = []
+        monkeypatch.setattr("dwatcher.gui.main",
+                            lambda config_path=None: called.append(config_path))
+        assert main([]) == 0
+        assert len(called) == 1
+
 
 class TestMainOnce:
     def test_once_moves_files_and_prints_report(self, tmp_path, capsys):
