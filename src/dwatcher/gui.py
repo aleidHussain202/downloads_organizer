@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ctypes
 import queue
+import sys
 import threading
 import time
 import tkinter as tk
@@ -15,6 +17,19 @@ from .config import DEFAULTS, load_config
 from .scanner import scan_once
 from .store import Store
 from .watcher import Watcher
+
+
+def _hide_console():
+    """Hide the console window on Windows when running GUI mode."""
+    if sys.platform == "win32":
+        try:
+            kernel32 = ctypes.windll.kernel32
+            user32 = ctypes.windll.user32
+            hwnd = kernel32.GetConsoleWindow()
+            if hwnd:
+                user32.ShowWindow(hwnd, 0)  # SW_HIDE
+        except Exception:
+            pass
 
 
 @dataclass
@@ -390,6 +405,7 @@ class DwatcherGui:
 
 def main(config_path: str | None = None):
     """Entry point for the GUI."""
+    _hide_console()
     app = DwatcherGui(config_path)
     app.run()
 
