@@ -113,3 +113,14 @@ class TestInPlaceMode:
         rc2 = main(["once", "--watch", str(w)])
         assert rc2 == 0
         assert (w / "Archives" / "a.zip").exists()
+
+
+def test_watch_dir_override_and_negative_rejected(tmp_path):
+    from dwatcher.cli import build_parser, _resolve_settings
+    import pytest
+    args = build_parser().parse_args(["watch", "--watch", str(tmp_path)])
+    cfg = _resolve_settings(args)
+    assert str(cfg["watch_dir"]) == str(tmp_path)
+    args2 = build_parser().parse_args(["once", "--quiet", "-5"])
+    with pytest.raises(SystemExit):
+        _resolve_settings(args2)

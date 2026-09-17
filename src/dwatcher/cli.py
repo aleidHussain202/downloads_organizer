@@ -39,6 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     watch.add_argument("--quiet", type=int, default=30)
     watch.add_argument("--dry-run", action="store_true")
     watch.add_argument("--db", default=None)
+    watch.add_argument("--log", default=None)
 
     rec = sub.add_parser("recover", help="resolve interrupted moves from journal")
     rec.add_argument("--db", default=None)
@@ -53,14 +54,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _resolve_settings(args) -> dict:
     cfg = load_config(args.config or "dwatcher.toml")
-    if getattr(args, "watch", None):
-        cfg["watch_dir"] = Path(args.watch)
+    watch_override = getattr(args, "watch", None) or getattr(args, "watch_dir", None)
+    if watch_override:
+        cfg["watch_dir"] = Path(watch_override)
     if getattr(args, "dest", None):
         cfg["dest_root"] = Path(args.dest)
     for attr, key in (("quiet", "quiet_seconds"), ("interval", "interval")):
         val = getattr(args, attr, None)
         if val is not None:
-            cfg[key] = val
+            if int(val) < 0:
+                raise SystemExit(f"error: --{attr} must be >= 0")
+            cfg[key] = int(val)
     if getattr(args, "dry_run", False):
         cfg["dry_run"] = True
     if cfg.get("dest_root") is None:
@@ -68,8 +72,26 @@ def _resolve_settings(args) -> dict:
     return cfg
 
 
-def _db_path(args) -> Path:
-    return Path(getattr(args, "db", None) or "dwatcher.db")
+def _db_path(args, config_path=None) -> Path:
+    raw = getattr(args, "db", None)
+    if raw:
+        p = Path(raw)
+        if not p.is_absolute() and config_path:
+            return Path(config_path).parent / p
+        return p
+    base = Path(config_path).parent if config_path else Path.cwd()
+    return base / "dwatcher.db"
+
+
+def _log_path(args, config_path=None) -> Path:
+    raw = getattr(args, "log", None)
+    if raw:
+        p = Path(raw)
+        if not p.is_absolute() and config_path:
+            return Path(config_path).parent / p
+        return p
+    base = Path(config_path).parent if config_path else Path.cwd()
+    return base / "dwatcher_events.jsonl"
 
 
 def main(argv=None) -> int:
@@ -78,7 +100,7 @@ def main(argv=None) -> int:
     if args.command in ("once", "watch"):
         cfg = _resolve_settings(args)
 
-        store = Store(_db_path(args))
+        store = Store(_db_path(args, args.config))
         try:
             if args.command == "once":
                 report = scan_once(
@@ -88,8 +110,7 @@ def main(argv=None) -> int:
                     dry_run=cfg["dry_run"],
                     store=store,
                 )
-                if report.errors and not report.moved and report.scanned == 0 \
-                        and any("cannot list" in n for n in report.notes):
+                if report.errors and not report.moved:
                     print(f"error: cannot read {cfg['watch_dir']}")
                     return 1
                 state = "would move" if cfg["dry_run"] else "moved"
@@ -103,7 +124,7 @@ def main(argv=None) -> int:
                 cfg["watch_dir"], cfg["dest_root"],
                 interval=cfg["interval"], quiet_seconds=cfg["quiet_seconds"],
                 dry_run=cfg["dry_run"], rules=cfg.get("rules") or None,
-                store=store, log_path=Path("dwatcher_events.jsonl"),
+                store=store, log_path=_log_path(args, args.config),
             )
             def _announce(report):
                 if report is not None and report.moved:
@@ -121,7 +142,7 @@ def main(argv=None) -> int:
             store.close()
 
     elif args.command == "recover":
-        store = Store(_db_path(args))
+        store = Store(_db_path(args, args.config))
         try:
             actions = recover_pending(store)
             if not actions:
@@ -133,7 +154,7 @@ def main(argv=None) -> int:
             store.close()
 
     elif args.command == "stats":
-        store = Store(_db_path(args))
+        store = Store(_db_path(args, args.config))
         try:
             rows = store.stats_by_category()
             total = sum(n for _, n in rows)
