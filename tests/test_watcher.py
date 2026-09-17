@@ -96,13 +96,19 @@ class TestWatcherLoop:
 
 
 def test_log_failure_does_not_fail_scan(tmp_path):
+    import os, time
     from dwatcher.watcher import Watcher
     watch = tmp_path / "w"; watch.mkdir()
     dest = tmp_path / "d"; dest.mkdir()
+    f = watch / "doc.pdf"
+    f.write_bytes(b"x" * 10)
+    old = time.time() - 300
+    os.utime(f, (old, old))
     bad_log = tmp_path / "nodir" / "e.jsonl"
     w = Watcher(watch, dest, interval=0, quiet_seconds=0, log_path=bad_log)
-    ok, _ = w.scan_once_safe()
+    ok, report = w.scan_once_safe()
     assert ok is True
+    assert len(report.moved) == 1
 
 
 def test_previous_sizes_tracked(tmp_path):
