@@ -91,3 +91,15 @@ class TestExecuteMove:
         f.write_text("x")
         result = execute_move(plan_move(f, dst / "Archives" / "sub"))
         assert result.dst == dst / "Archives" / "sub" / "a.zip"
+
+
+def test_unique_destination_caps_and_types(tmp_path):
+    from dwatcher.mover import plan_move, unique_destination
+    from pathlib import Path
+    src = tmp_path / "a.zip"; src.write_bytes(b"x")
+    plan = plan_move(src, tmp_path / "Archives")
+    assert isinstance(plan.src, Path) and isinstance(plan.dst, Path)
+    (tmp_path / "Archives").mkdir()
+    (tmp_path / "Archives" / "a.zip").write_bytes(b"y")
+    out = unique_destination(tmp_path / "Archives" / "a.zip")
+    assert out.name == "a (1).zip"

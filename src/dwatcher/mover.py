@@ -1,41 +1,35 @@
 """Collision-safe file moves with dry-run support."""
-
 from __future__ import annotations
-
 import shutil
 from dataclasses import dataclass
-
+from pathlib import Path
+MAX_COLLISIONS = 10000
 
 @dataclass(frozen=True)
 class MovePlan:
-    src: object  # pathlib.Path
-    dst: object  # pathlib.Path (final file path, incl. category folder)
-
+    src: Path
+    dst: Path
 
 @dataclass(frozen=True)
 class MoveResult:
     ok: bool
-    src: object
-    dst: object
+    src: Path
+    dst: Path
     error: str | None = None
 
+def plan_move(src: Path, dest_dir: Path) -> MovePlan:
+    return MovePlan(src=Path(src), dst=Path(dest_dir) / Path(src).name)
 
-def plan_move(src, dest_dir) -> MovePlan:
-    """Build a move plan: src file -> dest_dir/<same filename>."""
-    return MovePlan(src=src, dst=dest_dir / src.name)
-
-
-def unique_destination(dst) -> object:
-    """Return dst, or dst with ' (n)' inserted before the suffix if taken."""
+def unique_destination(dst: Path) -> Path:
+    dst = Path(dst)
     if not dst.exists():
         return dst
     stem, suffix = dst.stem, dst.suffix
-    n = 1
-    while True:
+    for n in range(1, MAX_COLLISIONS + 1):
         candidate = dst.with_name(f"{stem} ({n}){suffix}")
         if not candidate.exists():
             return candidate
-        n += 1
+    raise OSError(f"too many collisions for {dst}")
 
 
 def execute_move(plan: MovePlan, dry_run: bool = False) -> MoveResult:
