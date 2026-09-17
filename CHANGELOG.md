@@ -3,6 +3,19 @@
 All notable changes to dwatcher are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- CI (`pytest` on Windows) and `dwatcher-gui.bat` launcher.
+- GUI split into modules with dry-run checkbox; `dest` docs fix.
+
+### Fixed
+- Config validation and custom rules merged over defaults.
+- Scanner records pre-move size, clears final intent, tracks previous sizes.
+- Store uses WAL with timeout and idempotent close; mover typed to `Path`.
+- Safe crash recovery with per-intent errors and collision check.
+- CLI `--log`/validation/path fixes; watcher log guard, rotation, size tracking.
+
 ## [1.0.0] - 2026-08-25
 
 First polished release: standalone `.exe`, native GUI, full CLI.

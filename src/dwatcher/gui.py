@@ -6,7 +6,6 @@ import ctypes
 import queue
 import sys
 import threading
-import time
 import tkinter as tk
 import tkinter.messagebox
 from datetime import datetime
@@ -19,7 +18,6 @@ from .gui_thread import WatcherThread
 from .gui_utils import format_size, open_folder, token_lines
 from .scanner import scan_once
 from .store import Store
-from .watcher import Watcher
 
 
 def _hide_console():
