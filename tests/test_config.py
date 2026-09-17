@@ -46,3 +46,31 @@ dir = "C:/d"
 """)
         cfg = load_config(p)
         assert cfg["rules"][".stl"] == "3DPrints"
+
+
+def test_dest_empty_string_means_none(tmp_path):
+    p = tmp_path / "dwatcher.toml"
+    p.write_text('[watch]\ndir = "C:/d"\ndest = ""\n')
+    from dwatcher.config import load_config
+    assert load_config(p)["dest_root"] is None
+
+
+def test_negative_interval_raises(tmp_path):
+    p = tmp_path / "dwatcher.toml"
+    p.write_text('[watch]\ninterval = -1\n')
+    from dwatcher.config import load_config
+    import pytest
+    with pytest.raises(ValueError, match="interval"):
+        load_config(p)
+
+
+def test_unreadable_file_raises_valueerror(tmp_path, monkeypatch):
+    from dwatcher.config import load_config
+    import pathlib
+    p = tmp_path / "x.toml"
+    p.write_text("x")
+    def boom(*a, **k): raise OSError("denied")
+    monkeypatch.setattr(pathlib.Path, "read_text", boom)
+    import pytest
+    with pytest.raises(ValueError, match="config"):
+        load_config(p)
