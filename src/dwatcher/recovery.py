@@ -40,7 +40,9 @@ def recover_pending(store, dry_run: bool = False) -> list[str]:
                         if not dry_run:
                             os.remove(src)
                             store.clear_intent(dst)
-                        actions.append(f"removed duplicate src: {src}")
+                            actions.append(f"removed duplicate src: {src}")
+                        else:
+                            actions.append(f"would remove duplicate src: {src} (dry run)")
                     except OSError as exc:
                         actions.append(f"could not remove {src}: {exc}")
                 else:
@@ -55,7 +57,7 @@ def recover_pending(store, dry_run: bool = False) -> list[str]:
             else:
                 store.clear_intent(dst)
                 actions.append(f"missing both sides: {src} -> {dst} (cleared)")
-        except OSError as exc:
+        except Exception as exc:
             actions.append(f"could not recover {src} -> {dst}: {exc}")
             continue
     return actions

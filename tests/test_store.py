@@ -77,3 +77,24 @@ def test_close_idempotent_and_context_manager(tmp_path):
     with Store(tmp_path / "b.db") as s2:
         s2.record_move("s", "d", "Documents", 10, False)
         assert s2.stats_by_category() == [("Documents", 1)]
+
+
+def test_concurrent_writes_from_threads(tmp_path):
+    import threading
+    from dwatcher.store import Store
+    s = Store(tmp_path / "con.db")
+    try:
+        errs = []
+        def work(n):
+            try:
+                for i in range(25):
+                    s.record_move(f"s{n}-{i}", f"d{n}-{i}", "Documents", i, False)
+            except Exception as exc:  # noqa: BLE001
+                errs.append(exc)
+        threads = [threading.Thread(target=work, args=(n,)) for n in range(4)]
+        for t in threads: t.start()
+        for t in threads: t.join()
+        assert errs == []
+        assert sum(n for _, n in s.stats_by_category()) == 100
+    finally:
+        s.close()

@@ -64,6 +64,8 @@ def scan_once(
         if result.ok:
             if store is not None and not dry_run:
                 store.clear_intent(str(result.dst))
+                if str(result.dst) != str(plan.dst):
+                    store.clear_intent(str(plan.dst))
             if store is not None:
                 store.record_move(str(plan.src), str(result.dst), category, size_before, dry_run)
             if previous_sizes is not None:
