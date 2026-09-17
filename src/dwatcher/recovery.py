@@ -1,52 +1,61 @@
 """Crash-safe recovery driven by the write-ahead intent journal."""
-
 from __future__ import annotations
-
+import os
 import shutil
+from pathlib import Path
+from .mover import unique_destination
 
 
-def recover_pending(store) -> list[str]:
-    """Resolve every pending intent. Returns human-readable actions.
+def _same_file(a: str, b: str) -> bool:
+    try:
+        sa, sb = os.stat(a), os.stat(b)
+        return sa.st_size == sb.st_size and int(sa.st_mtime) == int(sb.st_mtime)
+    except OSError:
+        return False
 
-    For each (src, dst) intent:
-      - src missing, dst present  -> move happened, clear intent
-      - src present, dst missing  -> move never ran, do it now
-      - both present              -> dst exists; remove src copy, clear
-      - both missing              -> report, clear
-    """
+
+def recover_pending(store, dry_run: bool = False) -> list[str]:
     actions: list[str] = []
     for src, dst in store.pending_intents():
-        src_exists = shutil.os.path.exists(src)
-        dst_exists = shutil.os.path.exists(dst)
-        if not src_exists and dst_exists:
-            store.clear_intent(dst)
-            actions.append(f"cleared: {dst} (move had completed)")
-        elif src_exists and not dst_exists:
-            parent = shutil.os.path.dirname(dst)
-            shutil.os.makedirs(parent, exist_ok=True)
-            final = _unique(dst)
-            shutil.move(src, final)
-            store.clear_intent(str(final))
-            actions.append(f"moved: {src} -> {final}")
-        elif src_exists and dst_exists:
-            try:
-                shutil.os.remove(src)
-                actions.append(f"removed duplicate src: {src}")
-            except OSError as exc:
-                actions.append(f"could not remove {src}: {exc}")
-            store.clear_intent(dst)
-            actions.append(f"cleared: {dst}")
-        else:
-            store.clear_intent(dst)
-            actions.append(f"missing both sides: {src} -> {dst} (cleared)")
+        try:
+            src_exists = os.path.exists(src)
+            dst_exists = os.path.exists(dst)
+            if not src_exists and dst_exists:
+                store.clear_intent(dst)
+                actions.append(f"cleared: {dst} (move had completed)")
+            elif src_exists and not dst_exists:
+                if dry_run:
+                    actions.append(f"would move: {src} -> {dst}")
+                    continue
+                os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
+                final = Path(unique_destination(Path(dst)))
+                shutil.move(src, str(final))
+                store.clear_intent(str(final))
+                if str(final) != dst:
+                    store.clear_intent(dst)
+                actions.append(f"moved: {src} -> {final}")
+            elif src_exists and dst_exists:
+                if _same_file(src, dst):
+                    try:
+                        if not dry_run:
+                            os.remove(src)
+                            store.clear_intent(dst)
+                        actions.append(f"removed duplicate src: {src}")
+                    except OSError as exc:
+                        actions.append(f"could not remove {src}: {exc}")
+                else:
+                    if dry_run:
+                        actions.append(f"would rename: {src} (dst differs)")
+                        continue
+                    final = Path(unique_destination(Path(dst)))
+                    shutil.move(src, str(final))
+                    store.clear_intent(str(final))
+                    store.clear_intent(dst)
+                    actions.append(f"moved colliding src: {src} -> {final}")
+            else:
+                store.clear_intent(dst)
+                actions.append(f"missing both sides: {src} -> {dst} (cleared)")
+        except OSError as exc:
+            actions.append(f"could not recover {src} -> {dst}: {exc}")
+            continue
     return actions
-
-
-def _unique(dst):
-    if not shutil.os.path.exists(dst):
-        return dst
-    stem, ext = shutil.os.path.splitext(dst)
-    n = 1
-    while shutil.os.path.exists(f"{stem} ({n}){ext}"):
-        n += 1
-    return f"{stem} ({n}){ext}"

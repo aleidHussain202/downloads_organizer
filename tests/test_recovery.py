@@ -71,3 +71,41 @@ class TestRecover:
         actions = recover_pending(store)
         assert any("missing" in a.lower() for a in actions)
         store.close()
+
+
+def test_both_present_different_size_keeps_both(tmp_path):
+    from dwatcher.store import Store
+    from dwatcher.recovery import recover_pending
+    src = tmp_path / "a.pdf"; dst = tmp_path / "out" / "a.pdf"
+    dst.parent.mkdir()
+    src.write_bytes(b"x" * 10); dst.write_bytes(b"y" * 99)
+    s = Store(tmp_path / "r.db")
+    try:
+        s.write_intent(str(src), str(dst))
+        actions = recover_pending(s)
+        assert src.exists() or (dst.parent / "a (1).pdf").exists()
+        assert dst.read_bytes() == b"y" * 99
+    finally:
+        s.close()
+
+
+def test_locked_src_does_not_abort_rest(tmp_path, monkeypatch):
+    import shutil
+    from dwatcher.store import Store
+    from dwatcher.recovery import recover_pending
+    a = tmp_path / "a.pdf"; b = tmp_path / "b.pdf"
+    a.write_bytes(b"a"); b.write_bytes(b"b")
+    s = Store(tmp_path / "r2.db")
+    try:
+        s.write_intent(str(a), str(tmp_path / "o1" / "a.pdf"))
+        s.write_intent(str(b), str(tmp_path / "o2" / "b.pdf"))
+        orig = shutil.move
+        def flaky(s_, d_):
+            if str(s_).endswith("a.pdf"): raise OSError("locked")
+            return orig(s_, d_)
+        monkeypatch.setattr(shutil, "move", flaky)
+        actions = recover_pending(s)
+        assert any("locked" in x or "could not" in x for x in actions)
+        assert (tmp_path / "o2" / "b.pdf").exists()
+    finally:
+        s.close()

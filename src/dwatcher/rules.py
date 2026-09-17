@@ -80,7 +80,7 @@ def resolve_rules(custom: dict | None = None) -> dict:
 def classify(filename: str, rules: dict[str, str | list] | None = None) -> str | None:
     """Return the destination category for *filename*.
 
-    rules overrides DEFAULT_RULES. A rule value of [] (empty list) means
+    rules are merged over DEFAULT_RULES. A rule value of [] (empty list) means
     "never touch this extension". Returns None when no rule matches.
     """
     active = resolve_rules(rules)
