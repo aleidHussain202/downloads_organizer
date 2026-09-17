@@ -68,3 +68,12 @@ class TestStats:
         stats = dict(store.stats_by_category())
         assert stats["Archives"] == 2
         assert stats["Images"] == 1
+
+
+def test_close_idempotent_and_context_manager(tmp_path):
+    from dwatcher.store import Store
+    s = Store(tmp_path / "a.db")
+    s.close(); s.close()
+    with Store(tmp_path / "b.db") as s2:
+        s2.record_move("s", "d", "Documents", 10, False)
+        assert s2.stats_by_category() == [("Documents", 1)]

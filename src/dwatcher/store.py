@@ -6,9 +6,12 @@ import sqlite3
 
 
 class Store:
-    def __init__(self, db_path):
-        self.conn = sqlite3.connect(str(db_path))
+    def __init__(self, db_path, timeout: float = 30.0):
+        self._closed = False
+        self.conn = sqlite3.connect(str(db_path), timeout=timeout, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA journal_mode=WAL;")
+        self.conn.execute("PRAGMA synchronous=NORMAL;")
         self._init_schema()
 
     def _init_schema(self):
@@ -28,6 +31,7 @@ class Store:
                 src TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_moves_ts ON moves(ts);
+            CREATE INDEX IF NOT EXISTS idx_intents_src ON intents(src);
             """
         )
         self.conn.commit()
@@ -75,4 +79,16 @@ class Store:
         self.conn.commit()
 
     def close(self):
-        self.conn.close()
+        if self._closed:
+            return
+        try:
+            self.conn.close()
+        finally:
+            self._closed = True
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
