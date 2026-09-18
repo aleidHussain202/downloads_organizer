@@ -83,9 +83,11 @@ Or run the same commands through `dist/dwatcher.exe` (see Quick start).
 dwatcher.exe gui [--config path/to/dwatcher.toml]
 ```
 
-The GUI shows live watch status, per-category stats bars, a recent-moves
-table, and pause/resume + dry-run checkbox. It hides its console window;
-the CLI subcommands keep theirs.
+The GUI (dark theme, 4 tabs) shows a Dashboard with live status, session
+counters and per-category stats bars; a Recent Moves table; an Activity log
+of scans, notes and errors (last 200, in-memory); and a Settings tab with
+the active config plus pause/resume and dry-run controls. It hides its
+console window; the CLI subcommands keep theirs.
 
 ## Configuration (`dwatcher.toml`)
 
