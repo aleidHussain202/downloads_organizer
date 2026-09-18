@@ -80,3 +80,21 @@ def test_stripe_alternates_even_odd():
     assert stripe(0) == "even"
     assert stripe(1) == "odd"
     assert stripe(2) == "even"
+
+
+def test_format_event_shapes():
+    from dwatcher.gui_utils import format_event
+    assert format_event("scan", "3 moved") == ("scan", "3 moved")
+    assert format_event("moved", "a.txt -> Docs") == ("moved", "a.txt -> Docs")
+    assert format_event("note", "watcher paused") == ("note", "watcher paused")
+    assert format_event("error", "scan failed") == ("error", "scan failed")
+
+
+def test_activity_feed_caps_at_200():
+    from collections import deque
+    feed: deque = deque(maxlen=200)
+    for i in range(250):
+        feed.append((f"12:00:{i % 60:02d}", "scan", f"event {i}"))
+    assert len(feed) == 200
+    assert feed[0][2] == "event 50"
+    assert feed[-1][2] == "event 249"

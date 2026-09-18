@@ -8,6 +8,7 @@ import sys
 import threading
 import tkinter as tk
 import tkinter.messagebox
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 from tkinter import ttk
@@ -16,7 +17,7 @@ from .config import DEFAULTS, load_config
 from .gui_state import GuiState
 from .gui_theme import PALETTE, apply_theme
 from .gui_thread import WatcherThread
-from .gui_utils import format_size, open_folder, status_dot, stripe, summarize, token_lines
+from .gui_utils import format_event, format_size, open_folder, status_dot, stripe, summarize, token_lines
 from .scanner import scan_once
 from .store import Store
 
@@ -61,6 +62,9 @@ class DwatcherGui:
         # Session counters shown in the dashboard header
         self.session_moved = 0
         self.session_errors = 0
+
+        # In-memory activity feed (capped; no threads, no file I/O)
+        self.activity: deque[tuple[str, str, str]] = deque(maxlen=200)
 
         # Build UI
         self.root = tk.Tk()
@@ -223,7 +227,7 @@ class DwatcherGui:
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
     def _build_activity_tab(self):
-        # Activity feed (wired in Task 5; shell only for now)
+        # Activity feed (time │ event │ detail)
         feed_frame = ttk.LabelFrame(self.tab_activity, text="Activity", padding=10)
         feed_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -255,6 +259,18 @@ class DwatcherGui:
             settings_row, text="Open DB Folder", command=self._open_db_folder, width=15
         )
         self.btn_open_db.pack(side=tk.LEFT, padx=5)
+
+    def _log_activity(self, kind: str, detail: str):
+        """Append a timestamped entry to the capped feed and refresh the tab."""
+        event, text = format_event(kind, detail)
+        self.activity.append((datetime.now().strftime("%H:%M:%S"), event, text))
+        self._refresh_activity()
+
+    def _refresh_activity(self):
+        for item in self.activity_tree.get_children():
+            self.activity_tree.delete(item)
+        for ts, event, text in self.activity:
+            self.activity_tree.insert("", tk.END, values=(ts, event, text))
 
     def _update_token_display(self):
         self.token_text.config(state=tk.NORMAL)
@@ -346,12 +362,14 @@ class DwatcherGui:
                         self.updated_var.set(f"Updated {datetime.now().strftime('%H:%M')}")
                         self.detail_var.set(summarize(self.session_moved, self.session_errors))
                         self.statusbar_var.set(f"Last scan moved {moved} file(s)")
+                        self._log_activity("scan", f"{moved} moved")
                     else:
                         self.session_errors += 1
                         self._set_status("Error")
                         self.updated_var.set(f"Updated {datetime.now().strftime('%H:%M')}")
                         self.detail_var.set(summarize(self.session_moved, self.session_errors))
                         self.statusbar_var.set("Scan error")
+                        self._log_activity("error", "scan failed (check logs)")
                     self._refresh_stats()
                     self._refresh_moves()
         except queue.Empty:
@@ -387,6 +405,7 @@ class DwatcherGui:
                     self.updated_var.set(f"Updated {datetime.now().strftime('%H:%M')}")
                     self.detail_var.set(summarize(self.session_moved, self.session_errors))
                     self.statusbar_var.set(f"Manual scan: {len(report.moved)} moved")
+                    self._log_activity("scan", f"manual: {len(report.moved)} moved")
                     self._refresh_stats()
                     self._refresh_moves()
                     return
@@ -403,11 +422,13 @@ class DwatcherGui:
             self._set_status("Paused")
             self.detail_var.set("Watcher paused - click Resume to continue")
             self.statusbar_var.set("Paused")
+            self._log_activity("note", "watcher paused")
         else:
             self.btn_pause.config(text="Pause")
             self._set_status("Watching")
             self.detail_var.set(f"Watching {self.state.watch_dir} every {self.state.interval}s")
             self.statusbar_var.set("Resumed watching")
+            self._log_activity("note", "watching resumed")
 
     def _on_recover(self):
         from .recovery import recover_pending
@@ -416,6 +437,7 @@ class DwatcherGui:
         actions = recover_pending(self.store)
         msg = "\n".join(actions) if actions else "Journal clean; nothing to recover"
         self.statusbar_var.set("Recovery complete")
+        self._log_activity("note", f"recovery: {msg.splitlines()[0][:80]}")
         # Show in a dialog
         tk.messagebox.showinfo("Recovery", msg)
         self._refresh_moves()

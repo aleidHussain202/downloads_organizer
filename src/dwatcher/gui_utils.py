@@ -57,3 +57,13 @@ def summarize(moved: int, errors: int) -> str:
 def stripe(i: int) -> str:
     """Row-striping tag for the moves table: ``"even"`` or ``"odd"``."""
     return "even" if i % 2 == 0 else "odd"
+
+
+_EVENT_KINDS = ("scan", "moved", "note", "error")
+
+
+def format_event(kind: str, detail: str) -> tuple[str, str]:
+    """Normalize an activity-feed entry to an ``(event, detail)`` pair."""
+    if kind in _EVENT_KINDS:
+        return (kind, detail)
+    return ("note", detail)
