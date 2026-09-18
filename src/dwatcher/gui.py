@@ -122,7 +122,7 @@ class DwatcherGui:
         self.dot_label.configure(foreground=color)
 
     def _build_dashboard(self):
-        # ===== HEADER: Status Card + Token Display =====
+        # ===== HEADER: Status Card =====
         header = ttk.Frame(self.tab_dash)
         header.pack(fill=tk.X, pady=(0, 10))
 
@@ -153,21 +153,6 @@ class DwatcherGui:
         ttk.Label(status_frame, textvariable=self.detail_var, foreground="gray").pack(
             anchor=tk.W
         )
-
-        # Config Token Display
-        token_frame = ttk.LabelFrame(header, text="Config", padding=10)
-        token_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(10, 0))
-
-        self.token_text = tk.Text(
-            token_frame,
-            height=6,
-            width=35,
-            font=("Consolas", 9),
-            state=tk.DISABLED,
-            wrap=tk.NONE,
-        )
-        self.token_text.pack()
-        self._update_token_display()
 
         # ===== CONTROLS =====
         controls = ttk.Frame(self.tab_dash)
@@ -247,7 +232,26 @@ class DwatcherGui:
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
     def _build_settings_tab(self):
-        # Dry-run + DB folder live here (full settings content in Task 6)
+        # Settings: read-only config display + dry-run + DB folder
+        config_frame = ttk.LabelFrame(self.tab_settings, text="Configuration", padding=10)
+        config_frame.pack(fill=tk.X, pady=(0, 10))
+
+        self.token_text = tk.Text(
+            config_frame,
+            height=8,
+            font=("Consolas", 9),
+            bg=PALETTE["SURFACE"],
+            fg=PALETTE["TEXT"],
+            insertbackground=PALETTE["TEXT"],
+            highlightthickness=1,
+            highlightbackground=PALETTE["BORDER"],
+            relief=tk.FLAT,
+            state=tk.DISABLED,
+            wrap=tk.NONE,
+        )
+        self.token_text.pack(fill=tk.X)
+        self._update_token_display()
+
         settings_row = ttk.Frame(self.tab_settings)
         settings_row.pack(fill=tk.X, pady=(0, 10))
 
@@ -276,6 +280,7 @@ class DwatcherGui:
         self.token_text.config(state=tk.NORMAL)
         self.token_text.delete("1.0", tk.END)
         lines = token_lines(self.state, self.db_path)
+        lines.append(f"Config: {self.config_path}")
         self.token_text.insert("1.0", "\n".join(lines))
         self.token_text.config(state=tk.DISABLED)
 
