@@ -14,7 +14,7 @@ from tkinter import ttk
 
 from .config import DEFAULTS, load_config
 from .gui_state import GuiState
-from .gui_theme import apply_theme
+from .gui_theme import PALETTE, apply_theme
 from .gui_thread import WatcherThread
 from .gui_utils import format_size, open_folder, status_dot, summarize, token_lines
 from .scanner import scan_once
@@ -190,10 +190,10 @@ class DwatcherGui:
         )
 
         # ===== STATS BAR CHART =====
-        stats_frame = ttk.LabelFrame(self.tab_dash, text="Moves by Category", padding=10)
-        stats_frame.pack(fill=tk.X, pady=(0, 10))
+        self.stats_frame = ttk.LabelFrame(self.tab_dash, text="Moves by Category", padding=10)
+        self.stats_frame.pack(fill=tk.X, pady=(0, 10))
 
-        self.stats_canvas = tk.Canvas(stats_frame, height=120, bg="white", highlightthickness=1, highlightbackground="#ccc")
+        self.stats_canvas = tk.Canvas(self.stats_frame, height=120, bg=PALETTE["SURFACE"], highlightthickness=1, highlightbackground=PALETTE["BORDER"])
         self.stats_canvas.pack(fill=tk.X)
         self.stats_canvas.bind("<Configure>", self._on_canvas_resize)
 
@@ -275,9 +275,11 @@ class DwatcherGui:
 
     def _draw_stats_bars(self, rows: list[tuple[str, int]]):
         self.stats_canvas.delete("all")
+        total = sum(n for _, n in rows)
+        self.stats_frame.configure(text=f"Moves by Category — total {total}")
         if not rows:
             self.stats_canvas.create_text(
-                10, 60, anchor=tk.W, text="No moves yet", fill="gray", font=("Segoe UI", 10)
+                10, 60, anchor=tk.W, text="No moves yet — run Scan Now or start watching", fill=PALETTE["MUTED"], font=("Segoe UI", 10)
             )
             return
 
@@ -294,15 +296,15 @@ class DwatcherGui:
             bar_w = max(10, int((n / max_n) * (w - 2 * padding - 120)))
             # Bar
             self.stats_canvas.create_rectangle(
-                padding, y, padding + bar_w, y + bar_h, fill="#2E86DE", outline=""
+                padding, y, padding + bar_w, y + bar_h, fill=PALETTE["ACCENT"], outline=""
             )
             # Category label
             self.stats_canvas.create_text(
-                padding - 10, y + bar_h // 2, anchor=tk.E, text=cat, font=("Segoe UI", 9)
+                padding - 10, y + bar_h // 2, anchor=tk.E, text=cat, fill=PALETTE["TEXT"], font=("Segoe UI", 9)
             )
             # Count
             self.stats_canvas.create_text(
-                padding + bar_w + 8, y + bar_h // 2, anchor=tk.W, text=str(n), font=("Segoe UI", 9, "bold")
+                padding + bar_w + 8, y + bar_h // 2, anchor=tk.W, text=str(n), fill=PALETTE["TEXT"], font=("Segoe UI", 9, "bold")
             )
 
     def _on_canvas_resize(self, event):
