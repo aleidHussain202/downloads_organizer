@@ -6,7 +6,7 @@ import os
 import time
 
 # extensions/suffixes that mark in-flight downloads across common browsers
-PARTIAL_SUFFIXES = (".crdownload", ".part", ".opdownload", ".tmp")
+PARTIAL_SUFFIXES = (".crdownload", ".part", ".opdownload", ".tmp", ".partial", ".temp")
 
 
 def is_partial(path) -> bool:

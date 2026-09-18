@@ -56,13 +56,34 @@ DEFAULT_RULES: dict[str, str] = {
 }
 
 
+def normalize_ext(ext: str) -> str:
+    e = ext.strip().lower()
+    return e if e.startswith(".") else f".{e}"
+
+
+def resolve_rules(custom: dict | None = None) -> dict:
+    """Merge custom over DEFAULT_RULES. [] opts out. Validates types."""
+    if custom is None:
+        return dict(DEFAULT_RULES)
+    merged: dict = dict(DEFAULT_RULES)
+    for k, v in custom.items():
+        if not isinstance(k, str):
+            raise TypeError(f"rule key {k!r} must be str")
+        if not (isinstance(v, str) or isinstance(v, list)):
+            raise TypeError(f"rule {k!r} must be str or list, got {type(v).__name__}")
+        if isinstance(v, list) and v != []:
+            raise ValueError(f"rule {k!r} list must be [] (opt-out)")
+        merged[normalize_ext(k)] = v
+    return merged
+
+
 def classify(filename: str, rules: dict[str, str | list] | None = None) -> str | None:
     """Return the destination category for *filename*.
 
-    rules overrides DEFAULT_RULES. A rule value of [] (empty list) means
+    rules are merged over DEFAULT_RULES. A rule value of [] (empty list) means
     "never touch this extension". Returns None when no rule matches.
     """
-    active = DEFAULT_RULES if rules is None else rules
+    active = resolve_rules(rules)
     ext = ""
     dot = filename.rfind(".")
     if dot > 0:  # >0 so dotfiles like ".gitignore" have no extension

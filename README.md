@@ -3,7 +3,7 @@
 Watches a folder (default: your Downloads) and auto-organizes **completed**
 downloads into category folders — safely.
 
-**Current release:** [v1.0.0](CHANGELOG.md) · 74 tests, zero runtime dependencies.
+**Current release:** [v1.0.0](CHANGELOG.md) · 93 tests, zero runtime dependencies.
 
 ## Quick start (no Python needed)
 
@@ -84,7 +84,7 @@ dwatcher.exe gui [--config path/to/dwatcher.toml]
 ```
 
 The GUI shows live watch status, per-category stats bars, a recent-moves
-table, and pause/resume + dry-run controls. It hides its console window;
+table, and pause/resume + dry-run checkbox. It hides its console window;
 the CLI subcommands keep theirs.
 
 ## Configuration (`dwatcher.toml`)
@@ -92,7 +92,7 @@ the CLI subcommands keep theirs.
 ```toml
 [watch]
 dir = "C:/Users/Temp/Downloads"   # folder to watch
-dest = ""                          # omit = sort in place
+# dest = "D:/Sorted"   # omit this key = sort in place (do NOT use dest = "")
 interval = 10                      # seconds between scans (watch mode)
 quiet_seconds = 30                 # file must be unchanged this long
 dry_run = false
@@ -102,10 +102,20 @@ dry_run = false
 ".txt" = []                        # [] = never touch .txt files
 ```
 
+Omit `dest` entirely to sort in place (do NOT use `dest = ""`) —
+`dest` is commented out in `dwatcher.example.toml`.
+
+Scans cover top-level files only (non-recursive); collisions never
+overwrite — they get ` (1)`, ` (2)` suffixes.
+
+`--db` (history commands) and `--log` (`watch`) take a file path;
+relative paths resolve against the config file's folder, else the working
+directory. The watch JSONL event log rotates to `.jsonl.1` once over 1 MB.
+
 ## Development
 
 ```bash
-.venv\Scripts\python.exe -m pytest -q     # 74 tests
+.venv\Scripts\python.exe -m pytest -q     # 93 tests
 
 # rebuild the exe after changes
 .venv\Scripts\pyinstaller.exe dwatcher.spec

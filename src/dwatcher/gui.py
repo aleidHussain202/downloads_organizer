@@ -6,17 +6,18 @@ import ctypes
 import queue
 import sys
 import threading
-import time
 import tkinter as tk
-from dataclasses import dataclass
+import tkinter.messagebox
 from datetime import datetime
 from pathlib import Path
 from tkinter import ttk
 
 from .config import DEFAULTS, load_config
+from .gui_state import GuiState
+from .gui_thread import WatcherThread
+from .gui_utils import format_size, open_folder, token_lines
 from .scanner import scan_once
 from .store import Store
-from .watcher import Watcher
 
 
 def _hide_console():
@@ -32,63 +33,6 @@ def _hide_console():
             pass
 
 
-@dataclass
-class GuiState:
-    """Shared state between GUI thread and watcher thread."""
-    watch_dir: Path
-    dest_root: Path
-    rules: dict | None
-    quiet_seconds: int
-    interval: int
-    dry_run: bool
-    db_path: Path
-    paused: bool = False
-    running: bool = True
-
-
-class WatcherThread(threading.Thread):
-    """Background thread running the Watcher loop."""
-
-    def __init__(self, state: GuiState, ui_queue: queue.Queue):
-        super().__init__(daemon=True)
-        self.state = state
-        self.ui_queue = ui_queue
-        self.store = Store(state.db_path)
-        self.watcher = Watcher(
-            watch_dir=state.watch_dir,
-            dest_root=state.dest_root,
-            interval=state.interval,
-            quiet_seconds=state.quiet_seconds,
-            dry_run=state.dry_run,
-            rules=state.rules,
-            store=self.store,
-            log_path=Path("dwatcher_events.jsonl"),
-        )
-
-    def run(self):
-        cycles = 0
-        consecutive_fails = 0
-        while self.state.running:
-            if not self.state.paused:
-                ok, report = self.watcher.scan_once_safe()
-                moved = len(getattr(report, "moved", None) or []) if report else 0
-                self.ui_queue.put(("scan_result", ok, moved, report))
-                if ok:
-                    consecutive_fails = 0
-                    delay = float(self.state.interval)
-                else:
-                    consecutive_fails += 1
-                    delay = min(
-                        float(self.state.interval) * (2 ** (consecutive_fails - 1)),
-                        float(self.watcher.max_backoff),
-                    )
-            else:
-                delay = 1.0  # short sleep when paused
-            cycles += 1
-            time.sleep(delay)
-        self.store.close()
-
-
 class DwatcherGui:
     """Main GUI application."""
 
@@ -96,7 +40,7 @@ class DwatcherGui:
         self.config_path = config_path or "dwatcher.toml"
         self.cfg = load_config(self.config_path)
         self.db_path = Path("dwatcher.db")
-        self.store = Store(self.db_path)
+        self.store = Store(self.db_path, timeout=30.0)
 
         # State shared with watcher thread
         self.state = GuiState(
@@ -110,7 +54,8 @@ class DwatcherGui:
         )
 
         self.ui_queue: queue.Queue = queue.Queue()
-        self.watcher_thread = WatcherThread(self.state, self.ui_queue)
+        self.manual_queue: queue.Queue = queue.Queue()
+        self.watcher_thread = WatcherThread(self.state, self.ui_queue, self.store)
 
         # Build UI
         self.root = tk.Tk()
@@ -193,6 +138,10 @@ class DwatcherGui:
         )
         self.btn_open_db.pack(side=tk.LEFT, padx=5)
 
+        self.dry_var = tk.BooleanVar(value=self.state.dry_run)
+        ttk.Checkbutton(controls, text="Dry run", variable=self.dry_var,
+                        command=self._on_dry_toggle).pack(side=tk.LEFT, padx=5)
+
         # ===== STATS BAR CHART =====
         stats_frame = ttk.LabelFrame(main, text="Moves by Category", padding=10)
         stats_frame.pack(fill=tk.X, pady=(0, 10))
@@ -231,16 +180,14 @@ class DwatcherGui:
     def _update_token_display(self):
         self.token_text.config(state=tk.NORMAL)
         self.token_text.delete("1.0", tk.END)
-        lines = [
-            f"Watch:  {self.state.watch_dir}",
-            f"Dest:   {self.state.dest_root}",
-            f"Interval: {self.state.interval}s",
-            f"Quiet:  {self.state.quiet_seconds}s",
-            f"DryRun: {self.state.dry_run}",
-            f"DB:     {self.db_path}",
-        ]
+        lines = token_lines(self.state, self.db_path)
         self.token_text.insert("1.0", "\n".join(lines))
         self.token_text.config(state=tk.DISABLED)
+
+    def _on_dry_toggle(self):
+        self.state.dry_run = bool(self.dry_var.get())
+        self.watcher_thread.watcher.dry_run = self.state.dry_run
+        self._update_token_display()
 
     def _load_initial_data(self):
         self._refresh_stats()
@@ -298,24 +245,16 @@ class DwatcherGui:
                 ts_str = ts
             src = Path(m["src"]).name
             dst = Path(m["dst"]).name
-            size = self._format_size(m["size"])
+            size = format_size(m["size"])
             dry = " (dry)" if m["dry_run"] else ""
             self.tree.insert("", tk.END, values=(ts_str, m["category"], src, dst + dry, size))
-
-    @staticmethod
-    def _format_size(bytes_val: int) -> str:
-        for unit in ["B", "KB", "MB", "GB"]:
-            if bytes_val < 1024:
-                return f"{bytes_val:.1f} {unit}"
-            bytes_val /= 1024
-        return f"{bytes_val:.1f} TB"
 
     def _poll_queue(self):
         try:
             while True:
                 msg = self.ui_queue.get_nowait()
                 if msg[0] == "scan_result":
-                    _, ok, moved, report = msg
+                    _, ok, moved = msg
                     if ok:
                         self.status_var.set("Watching")
                         self.detail_var.set(f"Last scan: {moved} file(s) moved")
@@ -343,13 +282,13 @@ class DwatcherGui:
                 dry_run=self.state.dry_run,
                 store=self.store,
             )
-            self.ui_queue.put(("manual_scan_done", report))
+            self.manual_queue.put(("manual_scan_done", report))
 
         threading.Thread(target=do_scan, daemon=True).start()
 
         def check_done():
             try:
-                msg = self.ui_queue.get_nowait()
+                msg = self.manual_queue.get_nowait()
                 if msg[0] == "manual_scan_done":
                     _, report = msg
                     self.btn_scan.config(state=tk.NORMAL)
@@ -390,8 +329,7 @@ class DwatcherGui:
         self._refresh_moves()
 
     def _open_db_folder(self):
-        import os
-        os.startfile(self.db_path.parent)  # Windows only
+        open_folder(self.db_path)
 
     def _on_close(self):
         self.state.running = False

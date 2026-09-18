@@ -1,9 +1,11 @@
 # Example config - copy to dwatcher.toml and edit
 [watch]
 dir = "C:/Users/Temp/Downloads"
+# dest = "D:/Sorted"   # omit = sort in place (do NOT use dest = "")
 interval = 10
 quiet_seconds = 30
 dry_run = false
 
 [rules]
 ".stl" = "3DPrints"
+# ".txt" = []   # opt out of .txt files

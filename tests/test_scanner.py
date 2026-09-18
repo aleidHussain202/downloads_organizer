@@ -74,3 +74,60 @@ class TestScanOnce:
     def test_missing_watch_dir_is_error_not_crash(self, tmp_path):
         report = scan_once(tmp_path / "nope", tmp_path / "s")
         assert report.errors >= 1
+
+
+def test_records_nonzero_size_and_clears_final_intent(tmp_path):
+    import os, time
+    from dwatcher.scanner import scan_once
+    from dwatcher.store import Store
+    watch = tmp_path / "watch"; watch.mkdir()
+    dest = tmp_path / "sorted"; dest.mkdir()
+    f = watch / "doc.pdf"
+    f.write_bytes(b"x" * 100)
+    old = time.time() - 300
+    os.utime(f, (old, old))
+    store = Store(tmp_path / "t.db")
+    try:
+        report = scan_once(watch, dest, store=store)
+        assert len(report.moved) == 1
+        rows = store.recent_moves(limit=5)
+        assert rows[0]["size"] == 100
+        assert store.pending_intents() == []
+    finally:
+        store.close()
+
+
+def test_previous_sizes_blocks_growth(tmp_path):
+    import os, time
+    from dwatcher.scanner import scan_once
+    watch = tmp_path / "w2"; watch.mkdir()
+    dest = tmp_path / "s2"; dest.mkdir()
+    f = watch / "a.zip"
+    f.write_bytes(b"x" * 10)
+    old = time.time() - 300
+    os.utime(f, (old, old))
+    prev = {f: 9999}
+    report = scan_once(watch, dest, quiet_seconds=0, previous_sizes=prev)
+    assert report.moved == []
+
+
+def test_no_orphan_intent_on_collision(tmp_path):
+    import os, time
+    from dwatcher.scanner import scan_once
+    from dwatcher.store import Store
+    watch = tmp_path / "watch"; watch.mkdir()
+    dest = tmp_path / "sorted"; dest.mkdir()
+    (dest / "Documents").mkdir()
+    (dest / "Documents" / "doc.pdf").write_bytes(b"existing")
+    f = watch / "doc.pdf"
+    f.write_bytes(b"x" * 50)
+    old = time.time() - 300
+    os.utime(f, (old, old))
+    store = Store(tmp_path / "c.db")
+    try:
+        report = scan_once(watch, dest, store=store)
+        assert len(report.moved) == 1
+        assert store.pending_intents() == []
+        assert (dest / "Documents" / "doc (1).pdf").exists()
+    finally:
+        store.close()

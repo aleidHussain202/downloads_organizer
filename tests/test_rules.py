@@ -48,3 +48,18 @@ class TestDefaultRules:
         cats = set(DEFAULT_RULES.values())
         assert {"Installers", "Documents", "Images", "Archives", "Audio",
                 "Video"} <= cats
+
+
+def test_custom_rules_merge_over_defaults():
+    from dwatcher.rules import classify
+    assert classify("a.pdf", {".stl": "3DPrints"}) == "Documents"
+    assert classify("m.stl", {".stl": "3DPrints"}) == "3DPrints"
+    assert classify("a.txt", {".txt": []}) is None
+    assert classify("a.pdf", {".txt": []}) == "Documents"
+
+
+def test_bad_rule_value_raises():
+    from dwatcher.rules import classify
+    import pytest
+    with pytest.raises(TypeError):
+        classify("a.xyz", {".xyz": 123})
