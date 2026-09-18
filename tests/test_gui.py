@@ -29,3 +29,34 @@ def test_token_lines_contains_dryrun():
     from pathlib import Path
     s = GuiState(Path("w"), Path("d"), None, 30, 10, True, Path("x.db"))
     assert any("DryRun: True" in line for line in token_lines(s, Path("x.db")))
+
+
+class FakeStyle:
+    def __init__(self):
+        self.used = None; self.configured = {}; self.mapped = {}
+    def theme_use(self, name=None):
+        if name is None: return "clam"
+        self.used = name
+    def configure(self, name, **kw): self.configured[name] = kw
+    def map(self, name, **kw): self.mapped[name] = kw
+
+
+def test_apply_theme_sets_dark_styles():
+    from dwatcher.gui_theme import apply_theme, PALETTE
+    st = FakeStyle()
+    apply_theme(st)
+    assert st.used == "clam"
+    assert st.configured["TButton"]["padding"] == 6
+    assert st.configured["Treeview"]["rowheight"] == 26
+    assert st.configured["Treeview"]["background"] == PALETTE["SURFACE"]
+    assert "TNotebook" in st.configured
+
+
+def test_palette_contrast():
+    from dwatcher.gui_theme import PALETTE
+    def lum(h):
+        c = [int(h[i:i+2], 16) / 255 for i in (1, 3, 5)]
+        c = [v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4 for v in c]
+        return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+    l1, l2 = lum(PALETTE["TEXT"]), lum(PALETTE["SURFACE"])
+    assert (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05) >= 7.0
