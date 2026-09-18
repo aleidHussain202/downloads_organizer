@@ -16,7 +16,7 @@ from .config import DEFAULTS, load_config
 from .gui_state import GuiState
 from .gui_theme import PALETTE, apply_theme
 from .gui_thread import WatcherThread
-from .gui_utils import format_size, open_folder, status_dot, summarize, token_lines
+from .gui_utils import format_size, open_folder, status_dot, stripe, summarize, token_lines
 from .scanner import scan_once
 from .store import Store
 
@@ -216,6 +216,9 @@ class DwatcherGui:
 
         vsb = ttk.Scrollbar(moves_frame, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscrollcommand=vsb.set)
+        self.tree.tag_configure("even", background=PALETTE["SURFACE"], foreground=PALETTE["TEXT"])
+        self.tree.tag_configure("odd", background=PALETTE["ROW_ALT"], foreground=PALETTE["TEXT"])
+        self.tree.tag_configure("empty", foreground=PALETTE["MUTED"])
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
@@ -314,7 +317,10 @@ class DwatcherGui:
         for item in self.tree.get_children():
             self.tree.delete(item)
         moves = self.store.recent_moves(limit=50)
-        for m in moves:
+        if not moves:
+            self.tree.insert("", tk.END, values=("", "(no moves yet)", "", "", ""), tags=("empty",))
+            return
+        for i, m in enumerate(moves):
             ts = m["ts"]
             try:
                 dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
@@ -325,7 +331,7 @@ class DwatcherGui:
             dst = Path(m["dst"]).name
             size = format_size(m["size"])
             dry = " (dry)" if m["dry_run"] else ""
-            self.tree.insert("", tk.END, values=(ts_str, m["category"], src, dst + dry, size))
+            self.tree.insert("", tk.END, values=(ts_str, m["category"], src, dst + dry, size), tags=(stripe(i),))
 
     def _poll_queue(self):
         try:

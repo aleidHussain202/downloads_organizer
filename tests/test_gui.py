@@ -73,3 +73,10 @@ def test_status_dot_mapping():
 def test_summarize():
     from dwatcher.gui_utils import summarize
     assert summarize(12, 0) == "12 moved this session · 0 errors"
+
+
+def test_stripe_alternates_even_odd():
+    from dwatcher.gui_utils import stripe
+    assert stripe(0) == "even"
+    assert stripe(1) == "odd"
+    assert stripe(2) == "even"

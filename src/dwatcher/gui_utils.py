@@ -52,3 +52,8 @@ def status_dot(status: str) -> tuple[str, str]:
 def summarize(moved: int, errors: int) -> str:
     """One-line session summary for the dashboard header."""
     return f"{moved} moved this session · {errors} errors"
+
+
+def stripe(i: int) -> str:
+    """Row-striping tag for the moves table: ``"even"`` or ``"odd"``."""
+    return "even" if i % 2 == 0 else "odd"
