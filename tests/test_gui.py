@@ -60,3 +60,16 @@ def test_palette_contrast():
         return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
     l1, l2 = lum(PALETTE["TEXT"]), lum(PALETTE["SURFACE"])
     assert (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05) >= 7.0
+
+
+def test_status_dot_mapping():
+    from dwatcher.gui_utils import status_dot
+    assert status_dot("Watching") == ("●", "#3FB950")
+    assert status_dot("Paused") == ("●", "#D29922")
+    assert status_dot("Error") == ("●", "#F85149")
+    assert status_dot("Anything-else") == ("●", "#9AA0A6")
+
+
+def test_summarize():
+    from dwatcher.gui_utils import summarize
+    assert summarize(12, 0) == "12 moved this session · 0 errors"

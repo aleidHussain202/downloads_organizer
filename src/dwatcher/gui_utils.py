@@ -35,3 +35,20 @@ def token_lines(state, db_path) -> list[str]:
     return [f"Watch:  {state.watch_dir}", f"Dest:   {state.dest_root}",
             f"Interval: {state.interval}s", f"Quiet:  {state.quiet_seconds}s",
             f"DryRun: {state.dry_run}", f"DB:     {db_path}"]
+
+
+_STATUS_DOT_COLORS: dict[str, str] = {
+    "Watching": "#3FB950",
+    "Paused": "#D29922",
+    "Error": "#F85149",
+}
+
+
+def status_dot(status: str) -> tuple[str, str]:
+    """Status dot glyph + color (text label carries meaning; never color-only)."""
+    return ("●", _STATUS_DOT_COLORS.get(status, "#9AA0A6"))
+
+
+def summarize(moved: int, errors: int) -> str:
+    """One-line session summary for the dashboard header."""
+    return f"{moved} moved this session · {errors} errors"

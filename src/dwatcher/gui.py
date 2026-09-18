@@ -14,8 +14,9 @@ from tkinter import ttk
 
 from .config import DEFAULTS, load_config
 from .gui_state import GuiState
+from .gui_theme import apply_theme
 from .gui_thread import WatcherThread
-from .gui_utils import format_size, open_folder, token_lines
+from .gui_utils import format_size, open_folder, status_dot, summarize, token_lines
 from .scanner import scan_once
 from .store import Store
 
@@ -57,11 +58,15 @@ class DwatcherGui:
         self.manual_queue: queue.Queue = queue.Queue()
         self.watcher_thread = WatcherThread(self.state, self.ui_queue, self.store)
 
+        # Session counters shown in the dashboard header
+        self.session_moved = 0
+        self.session_errors = 0
+
         # Build UI
         self.root = tk.Tk()
         self.root.title("Download Watcher")
-        self.root.geometry("900x650")
-        self.root.minsize(700, 500)
+        self.root.geometry("960x680")
+        self.root.minsize(760, 540)
 
         self._build_ui()
         self._load_initial_data()
@@ -76,25 +81,71 @@ class DwatcherGui:
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _build_ui(self):
+        apply_theme(ttk.Style())
+
         # Main container with padding
         main = ttk.Frame(self.root, padding=10)
         main.pack(fill=tk.BOTH, expand=True)
 
+        self.notebook = ttk.Notebook(main)
+        self.notebook.pack(fill=tk.BOTH, expand=True)
+
+        self.tab_dash = ttk.Frame(self.notebook, padding=10)
+        self.tab_moves = ttk.Frame(self.notebook, padding=10)
+        self.tab_activity = ttk.Frame(self.notebook, padding=10)
+        self.tab_settings = ttk.Frame(self.notebook, padding=10)
+        self.notebook.add(self.tab_dash, text="Dashboard")
+        self.notebook.add(self.tab_moves, text="Recent Moves")
+        self.notebook.add(self.tab_activity, text="Activity")
+        self.notebook.add(self.tab_settings, text="Settings")
+
+        self._build_dashboard()
+        self._build_moves_tab()
+        self._build_activity_tab()
+        self._build_settings_tab()
+
+        # ===== STATUS BAR =====
+        self.statusbar_var = tk.StringVar(value="Ready")
+        ttk.Label(self.root, textvariable=self.statusbar_var, relief=tk.SUNKEN, anchor=tk.W, padding=5).pack(
+            fill=tk.X, side=tk.BOTTOM, padx=10, pady=(0, 10)
+        )
+
+    def _set_status(self, status: str):
+        """Set status text + dot color (dot never carries meaning alone)."""
+        self.status_var.set(status)
+        dot, color = status_dot(status)
+        self.dot_var.set(dot)
+        self.dot_label.configure(foreground=color)
+
+    def _build_dashboard(self):
         # ===== HEADER: Status Card + Token Display =====
-        header = ttk.Frame(main)
+        header = ttk.Frame(self.tab_dash)
         header.pack(fill=tk.X, pady=(0, 10))
 
         # Status Card
         status_frame = ttk.LabelFrame(header, text="Status", padding=10)
         status_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
+        top_row = ttk.Frame(status_frame)
+        top_row.pack(fill=tk.X)
+
+        self.dot_var = tk.StringVar(value="●")
+        self.dot_label = ttk.Label(top_row, textvariable=self.dot_var, font=("Segoe UI", 14, "bold"))
+        self.dot_label.pack(side=tk.LEFT)
+
         self.status_var = tk.StringVar(value="Starting…")
         self.status_label = ttk.Label(
-            status_frame, textvariable=self.status_var, font=("Segoe UI", 14, "bold")
+            top_row, textvariable=self.status_var, font=("Segoe UI", 14, "bold")
         )
-        self.status_label.pack(anchor=tk.W)
+        self.status_label.pack(side=tk.LEFT, padx=(4, 0))
+        self._set_status("Starting…")
 
-        self.detail_var = tk.StringVar(value="")
+        self.updated_var = tk.StringVar(value="")
+        ttk.Label(top_row, textvariable=self.updated_var, foreground="gray").pack(
+            side=tk.RIGHT
+        )
+
+        self.detail_var = tk.StringVar(value=summarize(self.session_moved, self.session_errors))
         ttk.Label(status_frame, textvariable=self.detail_var, foreground="gray").pack(
             anchor=tk.W
         )
@@ -115,7 +166,7 @@ class DwatcherGui:
         self._update_token_display()
 
         # ===== CONTROLS =====
-        controls = ttk.Frame(main)
+        controls = ttk.Frame(self.tab_dash)
         controls.pack(fill=tk.X, pady=(0, 10))
 
         self.btn_scan = ttk.Button(
@@ -133,25 +184,22 @@ class DwatcherGui:
         )
         self.btn_recover.pack(side=tk.LEFT, padx=5)
 
-        self.btn_open_db = ttk.Button(
-            controls, text="Open DB Folder", command=self._open_db_folder, width=15
+        self.last_scan_var = tk.StringVar(value="")
+        ttk.Label(controls, textvariable=self.last_scan_var, foreground="gray").pack(
+            side=tk.RIGHT
         )
-        self.btn_open_db.pack(side=tk.LEFT, padx=5)
-
-        self.dry_var = tk.BooleanVar(value=self.state.dry_run)
-        ttk.Checkbutton(controls, text="Dry run", variable=self.dry_var,
-                        command=self._on_dry_toggle).pack(side=tk.LEFT, padx=5)
 
         # ===== STATS BAR CHART =====
-        stats_frame = ttk.LabelFrame(main, text="Moves by Category", padding=10)
+        stats_frame = ttk.LabelFrame(self.tab_dash, text="Moves by Category", padding=10)
         stats_frame.pack(fill=tk.X, pady=(0, 10))
 
         self.stats_canvas = tk.Canvas(stats_frame, height=120, bg="white", highlightthickness=1, highlightbackground="#ccc")
         self.stats_canvas.pack(fill=tk.X)
         self.stats_canvas.bind("<Configure>", self._on_canvas_resize)
 
+    def _build_moves_tab(self):
         # ===== RECENT MOVES TABLE =====
-        moves_frame = ttk.LabelFrame(main, text="Recent Moves", padding=10)
+        moves_frame = ttk.LabelFrame(self.tab_moves, text="Recent Moves", padding=10)
         moves_frame.pack(fill=tk.BOTH, expand=True)
 
         cols = ("time", "category", "source", "destination", "size")
@@ -171,11 +219,39 @@ class DwatcherGui:
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # ===== STATUS BAR =====
-        self.statusbar_var = tk.StringVar(value="Ready")
-        ttk.Label(self.root, textvariable=self.statusbar_var, relief=tk.SUNKEN, anchor=tk.W, padding=5).pack(
-            fill=tk.X, side=tk.BOTTOM, padx=10, pady=(0, 10)
+    def _build_activity_tab(self):
+        # Activity feed (wired in Task 5; shell only for now)
+        feed_frame = ttk.LabelFrame(self.tab_activity, text="Activity", padding=10)
+        feed_frame.pack(fill=tk.BOTH, expand=True)
+
+        cols = ("time", "event", "detail")
+        self.activity_tree = ttk.Treeview(feed_frame, columns=cols, show="headings", height=12)
+        for col, width, anchor in [
+            ("time", 90, tk.W),
+            ("event", 100, tk.CENTER),
+            ("detail", 400, tk.W),
+        ]:
+            self.activity_tree.heading(col, text=col.title())
+            self.activity_tree.column(col, width=width, anchor=anchor, stretch=(col == "detail"))
+
+        vsb = ttk.Scrollbar(feed_frame, orient=tk.VERTICAL, command=self.activity_tree.yview)
+        self.activity_tree.configure(yscrollcommand=vsb.set)
+        self.activity_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+
+    def _build_settings_tab(self):
+        # Dry-run + DB folder live here (full settings content in Task 6)
+        settings_row = ttk.Frame(self.tab_settings)
+        settings_row.pack(fill=tk.X, pady=(0, 10))
+
+        self.dry_var = tk.BooleanVar(value=self.state.dry_run)
+        ttk.Checkbutton(settings_row, text="Dry run", variable=self.dry_var,
+                        command=self._on_dry_toggle).pack(side=tk.LEFT, padx=5)
+
+        self.btn_open_db = ttk.Button(
+            settings_row, text="Open DB Folder", command=self._open_db_folder, width=15
         )
+        self.btn_open_db.pack(side=tk.LEFT, padx=5)
 
     def _update_token_display(self):
         self.token_text.config(state=tk.NORMAL)
@@ -256,12 +332,17 @@ class DwatcherGui:
                 if msg[0] == "scan_result":
                     _, ok, moved = msg
                     if ok:
-                        self.status_var.set("Watching")
-                        self.detail_var.set(f"Last scan: {moved} file(s) moved")
+                        self.session_moved += moved
+                        self._set_status("Watching")
+                        self.last_scan_var.set(f"last scan: {moved} moved")
+                        self.updated_var.set(f"Updated {datetime.now().strftime('%H:%M')}")
+                        self.detail_var.set(summarize(self.session_moved, self.session_errors))
                         self.statusbar_var.set(f"Last scan moved {moved} file(s)")
                     else:
-                        self.status_var.set("Error")
-                        self.detail_var.set("Scan failed (check logs)")
+                        self.session_errors += 1
+                        self._set_status("Error")
+                        self.updated_var.set(f"Updated {datetime.now().strftime('%H:%M')}")
+                        self.detail_var.set(summarize(self.session_moved, self.session_errors))
                         self.statusbar_var.set("Scan error")
                     self._refresh_stats()
                     self._refresh_moves()
@@ -292,8 +373,11 @@ class DwatcherGui:
                 if msg[0] == "manual_scan_done":
                     _, report = msg
                     self.btn_scan.config(state=tk.NORMAL)
-                    self.status_var.set("Watching" if not self.state.paused else "Paused")
-                    self.detail_var.set(f"Manual scan: {len(report.moved)} moved, {report.scanned} scanned")
+                    self.session_moved += len(report.moved)
+                    self._set_status("Watching" if not self.state.paused else "Paused")
+                    self.last_scan_var.set(f"last scan: {len(report.moved)} moved")
+                    self.updated_var.set(f"Updated {datetime.now().strftime('%H:%M')}")
+                    self.detail_var.set(summarize(self.session_moved, self.session_errors))
                     self.statusbar_var.set(f"Manual scan: {len(report.moved)} moved")
                     self._refresh_stats()
                     self._refresh_moves()
@@ -308,12 +392,12 @@ class DwatcherGui:
         self.state.paused = not self.state.paused
         if self.state.paused:
             self.btn_pause.config(text="Resume")
-            self.status_var.set("Paused")
+            self._set_status("Paused")
             self.detail_var.set("Watcher paused - click Resume to continue")
             self.statusbar_var.set("Paused")
         else:
             self.btn_pause.config(text="Pause")
-            self.status_var.set("Watching")
+            self._set_status("Watching")
             self.detail_var.set(f"Watching {self.state.watch_dir} every {self.state.interval}s")
             self.statusbar_var.set("Resumed watching")
 
